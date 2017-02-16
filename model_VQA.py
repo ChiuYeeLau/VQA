@@ -250,13 +250,13 @@ def get_data_test():
 	return dataset, img_feature, test_data
 
 def train():
-	print 'loading dataset...'
+	print('loading dataset...')
 	dataset, img_feature, train_data = get_data()
 	num_train = train_data['question'].shape[0]
 	vocabulary_size = len(dataset['ix_to_word'].keys())
-	print 'vocabulary_size : ' + str(vocabulary_size)
+	print('vocabulary_size : ' + str(vocabulary_size))
 
-	print 'constructing  model...'
+	print('constructing  model...')
 	model = Answer_Generator(
 		rnn_size = rnn_size,
 			rnn_layer = rnn_layer,
@@ -283,7 +283,7 @@ def train():
 
 	tf.initialize_all_variables().run()
 
-	print 'start training...'
+	print('start training...')
 	for itr in range(max_itr):
 		tStart = time.time()
 		# shuffle the training data
@@ -309,24 +309,24 @@ def train():
 
 		tStop = time.time()
 		if np.mod(itr, 100) == 0:
-			print "Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval()
+			print ("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval())
 			print ("Time Cost:", round(tStop - tStart,2), "s")
 		if np.mod(itr, 15000) == 0:
-			print "Iteration ", itr, " is done. Saving the model ..."
+			print ("Iteration ", itr, " is done. Saving the model ...")
 			saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
 
-	print "Finally, saving the model ..."
+	print ("Finally, saving the model ...")
 	saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=n_epochs)
 	tStop_total = time.time()
-	print "Total Time Cost:", round(tStop_total - tStart_total,2), "s"
+	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 
 
 def test(model_path='model_save/model-150000'):
-	print 'loading dataset...'
+	print ('loading dataset...')
 	dataset, img_feature, test_data = get_data_test()
 	num_test = test_data['question'].shape[0]
 	vocabulary_size = len(dataset['ix_to_word'].keys())
-	print 'vocabulary_size : ' + str(vocabulary_size)
+	print ('vocabulary_size : ' + str(vocabulary_size))
 
 	model = Answer_Generator(
 			rnn_size = rnn_size,
@@ -402,7 +402,7 @@ def test(model_path='model_save/model-150000'):
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 	# Save to JSON
-	print 'Saving result...'
+	print ('Saving result...')
 	my_list = list(result)
 	dd = json.dump(my_list,open('data.json','w'))
 

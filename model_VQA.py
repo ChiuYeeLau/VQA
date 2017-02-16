@@ -3,7 +3,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import os, h5py, sys, argparse
-import ipdb
+#import ipdb
 import time
 import math
 import cv2

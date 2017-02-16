@@ -1,9 +1,6 @@
-
 import json
 import os
 import argparse
-
-
 
 def main(params):
 	train = []

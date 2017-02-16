@@ -119,7 +119,7 @@ class Answer_Generator():
 #####################################################
 #                 Global Parameters		    #  
 #####################################################
-print 'Loading parameters ...'
+print('Loading parameters ...')
 # Data input setting
 input_img_h5 = './data_img.h5'
 input_ques_h5 = './data_prepro.h5'
@@ -234,9 +234,9 @@ def get_data_test():
 		# quiestion id
 		tem = hf.get('question_id_test')
 		test_data['ques_id'] = np.array(tem)
-	# MC_answer_test
-	tem = hf.get('MC_ans_test')
-	test_data['MC_ans_test'] = np.array(tem)
+		# MC_answer_test
+		tem = hf.get('MC_ans_test')
+		test_data['MC_ans_test'] = np.array(tem)
 
 
 	print('question aligning')

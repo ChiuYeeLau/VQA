@@ -6,9 +6,9 @@ def main(params):
 	train = []
 	test = []
 	imdir='v7w_%s.jpg'
-	print 'Loading annotations and questions...'
+	print('Loading annotations and questions...')
 	data = json.load(open('dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
-	print len(data)
+	print(len(data))
 	
 	for image in data:
 		# print image.keys()

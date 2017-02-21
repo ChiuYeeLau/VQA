@@ -276,6 +276,7 @@ def train():
 	tvars = tf.trainable_variables()
 	lr = tf.Variable(learning_rate)
 	opt = tf.train.AdamOptimizer(learning_rate=lr)
+	
 	# gradient clipping
 	gvs = opt.compute_gradients(tf_loss,tvars)
 	clipped_gvs = [(tf.clip_by_value(grad, -10.0, 10.0), var) for grad, var in gvs]

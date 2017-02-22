@@ -46,7 +46,7 @@ def main(params):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--data_set', default = 'telling',help = 'which data set, telling or pointing')
+	parser.add_argument('--data_set', default = 'telling', help = 'which data set, telling or pointing')
 	args = parser.parse_args()
 	params = vars(args) # convert to ordinary dict
 	main(params)

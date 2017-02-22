@@ -3,7 +3,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import os, h5py, sys, argparse
-#import ipdb
+import ipdb
 import time
 import math
 import cv2
@@ -20,11 +20,14 @@ class Answer_Generator():
 		self.dim_image = dim_image
 		self.dim_hidden = dim_hidden
 		self.max_words_q = max_words_q
-		self.vocabulary_size = vocabulary_size	
+		self.vocabulary_size = vocabulary_size
 		self.drop_out_rate = drop_out_rate
 
 		# question-embedding
 		self.embed_ques_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_ques_W')
+
+		# TODO answer-embedding 
+		self.embed_answ_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_answ_W')
 
 		# encoder: RNN body
 		self.lstm_1 = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True,state_is_tuple=False)
@@ -39,14 +42,16 @@ class Answer_Generator():
 		# image-embedding
 		self.embed_image_W = tf.Variable(tf.random_uniform([dim_image, self.dim_hidden], -0.08, 0.08), name='embed_image_W')
 		self.embed_image_b = tf.Variable(tf.random_uniform([dim_hidden], -0.08, 0.08), name='embed_image_b')
+
 		# score-embedding
-		self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
-		self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
+		#self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
+		#self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
 
 	def build_model(self):
 		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
 		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
-		label = tf.placeholder(tf.int64, [self.batch_size,]) 
+		answer = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+		label = tf.placeholder(tf.int32, [1,])
 		
 		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
 		loss = 0.0
@@ -63,10 +68,6 @@ class Answer_Generator():
 			output, state = self.stacked_lstm(ques_emb, state)
 
 		# multimodal (fusing question & image)
-		#####
-		# Relu or tanh?
-		#
-
 		state_drop = tf.nn.dropout(state, 1-self.drop_out_rate)
 		state_linear = tf.nn.xw_plus_b(state_drop, self.embed_state_W, self.embed_state_b)
 		state_emb = tf.tanh(state_linear)
@@ -85,6 +86,7 @@ class Answer_Generator():
 		# Calculate loss
 		loss = tf.reduce_mean(cross_entropy)
 		return loss, image, question, label
+
 	def build_generator(self):
 		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
 		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
@@ -134,7 +136,7 @@ learning_rate = 0.0003			# learning rate for rmsprop
 #starter_learning_rate = 3e-4
 learning_rate_decay_start = -1		# at what iteration to start decaying learning rate? (-1 = dont)
 batch_size = 500			# batch_size for each iterations
-input_embedding_size = 200		# he encoding size of each token in the vocabulary
+input_embedding_size = 200		# The encoding size of each token in the vocabulary
 rnn_size = 512				# size of the rnn in number of hidden nodes in each layer
 rnn_layer = 2				# number of the rnn layer
 dim_image = 4096
@@ -193,8 +195,10 @@ def get_data():
 		# convert into 0~82459
 		train_data['img_list'] = np.array(tem)-1
 		# answer is 1~1000
-		tem = hf.get('answers')
-		train_data['answers'] = np.array(tem)-1
+		#tem = hf.get('answers')
+		#train_data['answers'] = np.array(tem)-1
+		tem = hf.get('ans_train')
+		train_data['answers'] = tem
 
 	print('question aligning')
 	train_data['question'] = right_align(train_data['question'], train_data['length_q'])
@@ -239,8 +243,10 @@ def get_data_test():
 		tem = hf.get('question_id_test')
 		test_data['ques_id'] = np.array(tem)
 		# MC_answer_test
-		tem = hf.get('MC_ans_test')
-		test_data['MC_ans_test'] = np.array(tem)
+		#tem = hf.get('MC_ans_test')
+		#test_data['MC_ans_test'] = np.array(tem)
+		tem = hf.get('ans_test')
+		test_data['answer'] = tem
 
 
 	print('question aligning')
@@ -263,12 +269,12 @@ def train():
 	print('constructing  model...')
 	model = Answer_Generator(
 		rnn_size = rnn_size,
-			rnn_layer = rnn_layer,
+		rnn_layer = rnn_layer,
 		batch_size = batch_size,
 		input_embedding_size = input_embedding_size,
 		dim_image = dim_image,
 		dim_hidden = dim_hidden,
-		max_words_q = max_words_q,	
+		max_words_q = max_words_q,
 		vocabulary_size = vocabulary_size,
 		drop_out_rate = 0.5)
 
@@ -300,12 +306,13 @@ def train():
 		current_img_list = train_data['img_list'][index]
 		current_img = img_feature[current_img_list,:]
 
-	# do the training process!!!
+		# do the training process!!!
 		_, loss = sess.run(
 					[train_op, tf_loss],
 					feed_dict={
 						tf_image: current_img,
 						tf_question: current_question,
+						#### TODO
 						tf_label: current_answers
 						})
 

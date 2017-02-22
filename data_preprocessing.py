@@ -1,25 +1,30 @@
 import json
 import os
 import argparse
+import pdb
 
 def main(params):
 	train = []
 	test = []
 	imdir='v7w_%s.jpg'
-	print('Loading annotations and questions...')
+	print 'Loading annotations and questions...'
 	data = json.load(open('dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
-	print(len(data))
-	
+	# pdb.set_trace()
+
 	for image in data:
 		# print image.keys()
 		for QA in image['qa_pairs']:
-			ans = QA['answer']
+			correct_ans = QA['answer']
 			question_id = QA['qa_id']
 			image_path = imdir%(QA["image_id"])
 			question = QA['question']
+			# add correct answer
+			train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': correct_ans, 'ans': 1})
 			mc_ans = QA['multiple_choices']
-			train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': mc_ans, 'ans': ans})
-		
+			# add wrong answers
+			for wrong_ans in mc_ans:
+				train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': wrong_ans, 'ans': 0})
+
 	# subtype = 'val2014'
 	# for i in range(len(val_anno['annotations'])):
 	#     ans = val_anno['annotations'][i]['multiple_choice_answer']

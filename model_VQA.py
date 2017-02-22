@@ -63,6 +63,10 @@ class Answer_Generator():
 			output, state = self.stacked_lstm(ques_emb, state)
 
 		# multimodal (fusing question & image)
+		#####
+		# Relu or tanh?
+		#
+
 		state_drop = tf.nn.dropout(state, 1-self.drop_out_rate)
 		state_linear = tf.nn.xw_plus_b(state_drop, self.embed_state_W, self.embed_state_b)
 		state_emb = tf.tanh(state_linear)
@@ -186,7 +190,7 @@ def get_data():
 		train_data['length_q'] = np.array(tem)
 		# total 82460 img
 		tem = hf.get('img_pos_train')
-	# convert into 0~82459
+		# convert into 0~82459
 		train_data['img_list'] = np.array(tem)-1
 		# answer is 1~1000
 		tem = hf.get('answers')
@@ -276,7 +280,7 @@ def train():
 	tvars = tf.trainable_variables()
 	lr = tf.Variable(learning_rate)
 	opt = tf.train.AdamOptimizer(learning_rate=lr)
-	
+
 	# gradient clipping
 	gvs = opt.compute_gradients(tf_loss,tvars)
 	clipped_gvs = [(tf.clip_by_value(grad, -10.0, 10.0), var) for grad, var in gvs]

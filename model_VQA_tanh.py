@@ -173,7 +173,7 @@ input_ques_h5 = './data_prepro.h5'
 input_json = './data_prepro.json'
 
 # Train Parameters setting
-learning_rate = 0.003#0.0003			# learning rate for rmsprop
+learning_rate = 0.0003			# learning rate for rmsprop
 #starter_learning_rate = 3e-4
 learning_rate_decay_start = -1		# at what iteration to start decaying learning rate? (-1 = dont)
 batch_size = 500			# batch_size for each iterations
@@ -242,8 +242,6 @@ def get_data():
 		train_data['length_a'] = np.array(tem)
 
 		tem = hf.get('target_train')
-		# print('tem '+str(tem))
-		# pdb.set_trace()
 		train_data['target'] = np.transpose(np.vstack((np.array(tem), 1-np.array(tem))))
 
 
@@ -255,8 +253,6 @@ def get_data():
 	if img_norm:
 		tem = np.sqrt(np.sum(np.multiply(img_feature, img_feature), axis=1))
 		img_feature = np.divide(img_feature, np.transpose(np.tile(tem,(4096,1))))
-
-
 
 	return dataset, img_feature, train_data
 
@@ -300,7 +296,7 @@ def get_data_test():
 		test_data['length_a'] = np.array(tem)
 
 		tem = hf.get('target_test')
-		test_data['target'] = tem
+		test_data['target'] = np.transpose(np.vstack((np.array(tem), 1-np.array(tem))))
 
 	print('question aligning')
 	test_data['question'] = right_align(test_data['question'], test_data['length_q'])
@@ -457,16 +453,16 @@ def test(model_path='model_save/model-150000'):
 					})
 
 		# initialize json list
-
-
-		## TODO to be changed
+		assert(current_target.shape == (500,2))
+		assert(pred_proba.shape == (500,2))
+		target, prob = getMaximumLikelihood(current_target, pred_proba)
 
 		for i in xrange(0, 500):
-			if current_ques_id[i] not in intermediate_result:
-				result[current_ques_id[i]] = [current_target[i], pred_proba[i]]
+			if current_ques_id[i] not in result:
+				result[current_ques_id[i]] = [target[i], prob[i]]
 			else:
-				if result[current_ques_id[i]][1] < pred_proba:
-					result[current_ques_id[i]] = [current_target[i], pred_proba[i]]
+				if result[current_ques_id[i]][1] < prob[i]:
+					result[current_ques_id[i]] = [target[i], prob[i]]
 
 		tStop = time.time()
 		print ("Testing batch: ", current_batch_file_idx[0])
@@ -478,7 +474,20 @@ def test(model_path='model_save/model-150000'):
 	# Save to JSON
 	print ('Saving result...')
 	my_list = list(result)
-	dd = json.dump(my_list,open('data.json','w'))
+	dd = json.dump(my_list, open('data.json','w'))
+
+def getMaximumLikelihood(raw_target, raw_prob):
+	target = np.zeros((500,))
+	prob = np.zeros((500,))
+	for i in list(range(0, 500)):
+		if raw_prob[i,0] >= raw_prob[i,1]:
+			prob[i] = raw_prob[i,0]
+			target = raw_target[i,0]
+		else:
+			prob[i] = raw_prob[i,1]
+			target = raw_target[i,1]
+
+	return target, prob
 
 if __name__ == '__main__':
 	with tf.device('/gpu:'+str(0)):

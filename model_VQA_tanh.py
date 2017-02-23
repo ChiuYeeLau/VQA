@@ -23,11 +23,8 @@ class Answer_Generator():
 		self.vocabulary_size = vocabulary_size
 		self.drop_out_rate = drop_out_rate
 
-		# question-embedding
-		self.embed_ques_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_ques_W')
-
-		# TODO answer-embedding 
-		#self.embed_answ_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_answ_W')
+		# Before-LSTM-embedding
+		self.embed_BLSTM_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_BLSTM_W')
 
 		# encoder: RNN body
 		self.lstm_1 = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True,state_is_tuple=False)
@@ -36,62 +33,85 @@ class Answer_Generator():
 		self.lstm_dropout_2 = rnn_cell.DropoutWrapper(self.lstm_2, output_keep_prob = 1 - self.drop_out_rate)
 		self.stacked_lstm = rnn_cell.MultiRNNCell([self.lstm_dropout_1, self.lstm_dropout_2],state_is_tuple=False)
 
-		# state-embedding
-		self.embed_state_W = tf.Variable(tf.random_uniform([2*rnn_size*rnn_layer, self.dim_hidden], -0.08,0.08),name='embed_state_W')
-		self.embed_state_b = tf.Variable(tf.random_uniform([self.dim_hidden], -0.08, 0.08), name='embed_state_b')
+		# question-embedding W1
+		self.embed_Q_W = tf.Variable(tf.random_uniform([2*rnn_size*rnn_layer, self.dim_hidden], -0.08,0.08),name='embed_Q_W')
+		self.embed_Q_b = tf.Variable(tf.random_uniform([self.dim_hidden], -0.08, 0.08), name='embed_Q_b')
 		
-		# image-embedding
+		# Answer-embedding W3
+		self.embed_A_W = tf.Variable(tf.random_uniform([2*rnn_size*rnn_layer, self.dim_hidden], -0.08,0.08),name='embed_A_W')
+		self.embed_A_b = tf.Variable(tf.random_uniform([self.dim_hidden], -0.08, 0.08), name='embed_A_b')
+
+		# image-embedding W2
 		self.embed_image_W = tf.Variable(tf.random_uniform([dim_image, self.dim_hidden], -0.08, 0.08), name='embed_image_W')
 		self.embed_image_b = tf.Variable(tf.random_uniform([dim_hidden], -0.08, 0.08), name='embed_image_b')
 
-		# score-embedding
+		# score-embedding W4
 		#self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
 		#self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
+		self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
+		self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
+
+		# QI-embedding W3
+		self.embed_QI_W = tf.Variable(tf.random_uniform([dim_hidden, dim_hidden], -0.08, 0.08), name='embed_QI_W')
+		self.embed_QI_b = tf.Variable(tf.random_uniform([dim_hidden], -0.08, 0.08), name='embed_QI_b')
 
 	def build_model(self):
-		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
-		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
-		answer = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
-		label = tf.placeholder(tf.int32, [1,])
+		image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
+		question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
+		answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
+		label = tf.placeholder(tf.int32, [self.batch_size/2,])
 		
 		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
+		state_que = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
+		state_ans = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
 		loss = 0.0
+		question_ans = tf.concat(0, [question, answer])
 		for i in range(max_words_q):
 			if i==0:
-				ques_emb_linear = tf.zeros([self.batch_size, self.input_embedding_size])
+				blstm_emb_linear = tf.zeros([self.batch_size, self.input_embedding_size])
 			else:
 				tf.get_variable_scope().reuse_variables()
-				ques_emb_linear = tf.nn.embedding_lookup(self.embed_ques_W, question[:,i-1])
+				blstm_emb_linear = tf.nn.embedding_lookup(self.embed_BLSTM_W, question_ans[:,i-1])
+			blstm_emb_drop = tf.nn.dropout(blstm_emb_linear, 1-self.drop_out_rate)
+			blstm_emb = tf.tanh(blstm_emb_drop)
 
-			ques_emb_drop = tf.nn.dropout(ques_emb_linear, 1-self.drop_out_rate)
-			ques_emb = tf.tanh(ques_emb_drop)
+			output, state = self.stacked_lstm(blstm_emb, state)
+			state_que = state[0:250,:]    #zhe
+			state_ans = state[250:,:]  #zhe
 
-			output, state = self.stacked_lstm(ques_emb, state)
-
+		
 		# multimodal (fusing question & image)
-		state_drop = tf.nn.dropout(state, 1-self.drop_out_rate)
-		state_linear = tf.nn.xw_plus_b(state_drop, self.embed_state_W, self.embed_state_b)
-		state_emb = tf.tanh(state_linear)
+		Q_drop = tf.nn.dropout(state_que, 1-self.drop_out_rate)
+		Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
+		Q_emb = tf.tanh(Q_linear)
 
 		image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
 		image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
 		image_emb = tf.tanh(image_linear)
 
-		scores = tf.mul(state_emb, image_emb)
-		scores_drop = tf.nn.dropout(scores, 1-self.drop_out_rate)
-		scores_emb = tf.nn.xw_plus_b(scores_drop, self.embed_scor_W, self.embed_scor_b) 
+		A_drop = tf.nn.dropout(state_ans, 1-self.drop_out_rate)
+		A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
+		A_emb = tf.tanh(A_linear)
 
+		QI = tf.mul(Q_emb, image_emb)
+
+		QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
+		QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
+		QI_emb = tf.tanh(QI_linear)
+
+		QIA = tf.mul(QI_emb, A_emb)
+		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)   #zhe
 		# Calculate cross entropy
-		cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(scores_emb, label)
-
+		cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
 		# Calculate loss
 		loss = tf.reduce_mean(cross_entropy)
 		return loss, image, question, answer, label
 
 	def build_generator(self):
-		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
-		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
-		answer = 
+		image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
+		question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
+		##
+		answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
 
 		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
 		loss = 0.0
@@ -143,7 +163,7 @@ rnn_size = 512				# size of the rnn in number of hidden nodes in each layer
 rnn_layer = 2				# number of the rnn layer
 dim_image = 4096
 dim_hidden = 1024 #1024			# size of the common embedding vector
-num_output = 1000			# number of output answers
+num_output = 1#1000			# number of output answers
 img_norm = 1				# normalize the image feature. 1 = normalize, 0 = not normalize
 decay_factor = 0.99997592083
 
@@ -178,7 +198,7 @@ def get_data():
 	# load image feature
 	print('loading image feature...')
 	with h5py.File(input_img_h5,'r') as hf:
-		# -----0~82459------
+		# -----0~82459------  at most 47000
 		tem = hf.get('images_train')
 		img_feature = np.array(tem)
 	# load h5 file
@@ -203,7 +223,8 @@ def get_data():
 		train_data['length_a'] = np.array(tem)
 
 		tem = hf.get('target_train')
-		train_data['target'] = tem
+		#print('tem '+str(tem))
+		train_data['target'] = np.array(tem)
 
 
 	print('question & answer aligning')
@@ -214,6 +235,15 @@ def get_data():
 	if img_norm:
 		tem = np.sqrt(np.sum(np.multiply(img_feature, img_feature), axis=1))
 		img_feature = np.divide(img_feature, np.transpose(np.tile(tem,(4096,1))))
+
+	print("image_feature ")
+	print(img_feature.shape)
+	print("question ")
+	print(train_data['question'].shape)
+	print("answer ")
+	print(train_data['answer'].shape)
+	print("target")
+	print(train_data['target'].shape)
 
 	return dataset, img_feature, train_data
 
@@ -371,11 +401,7 @@ def test(model_path='model_save/model-150000'):
 	saver.restore(sess, model_path)
 
 	tStart_total = time.time()
-	result = []
-
-
-	## TODO batch size
-	
+	result = {}
 
 	for current_batch_start_idx in xrange(0, num_test-1, batch_size):
 	#for current_batch_start_idx in xrange(0,3,batch_size):
@@ -392,6 +418,7 @@ def test(model_path='model_save/model-150000'):
 		current_answer = test_data['answer'][current_batch_file_idx,:]
 		current_length_a = test_data['length_a'][current_batch_file_idx]
 		current_ques_id  = test_data['ques_id'][current_batch_file_idx]
+		current_target = test_data['target'][current_batch_file_idx]
 		current_img = img_feature[current_img_list,:] # (batch_size, dim_image)
 
 		# deal with the last batch
@@ -408,8 +435,7 @@ def test(model_path='model_save/model-150000'):
 				current_ques_id = np.concatenate((current_ques_id, pad_q_id))
 				current_img_list = np.concatenate((current_img_list, pad_img_list))
 
-
-		generated_ans = sess.run(
+		pred_proba = sess.run(
 				tf_proba,
 				feed_dict={
 					tf_image: current_img,
@@ -417,19 +443,18 @@ def test(model_path='model_save/model-150000'):
 					tf_answer: current_answer
 					})
 
-		top_ans = np.argmax(generated_ans, axis=1)
-
-
 		# initialize json list
 		for i in xrange(0, 500):
-			ans = dataset['ix_to_ans'][str(top_ans[i]+1)]
-			if(current_ques_id[i] == 0):
-				continue
-			result.append({u'answer': ans, u'question_id': str(current_ques_id[i])})
+			if current_ques_id[i] not in intermediate_result:
+				result[current_ques_id[i]] = [current_target[i], pred_proba]
+			else:
+				if result[current_ques_id[i]][1] < pred_proba:
+					result[current_ques_id[i]] = [current_target[i], pred_proba]
 
 		tStop = time.time()
 		print ("Testing batch: ", current_batch_file_idx[0])
 		print ("Time Cost:", round(tStop - tStart,2), "s")
+		
 	print ("Testing done.")
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")

@@ -8,7 +8,7 @@ def main(params):
 	test = []
 	imdir='v7w_%s.jpg'
 	print 'Loading annotations and questions...'
-	data = json.load(open('dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
+	data = json.load(open('/home/zwang15/data/visual7w/dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
 	# pdb.set_trace()
 
 	for image in data:
@@ -36,10 +36,10 @@ def main(params):
 
 	#     test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': mc_ans})
 
-	val_sz = len(data) // 5
+	val_sz = len(data) / (4*5)
 
-	test = train[:val_sz]
-	train = train[val_sz:]
+	test = train[:val_sz*4]
+	train = train[val_sz*4:]
 
 	json.dump(train, open('vqa_raw_train.json', 'w'))
 	json.dump(test, open('vqa_raw_test.json', 'w'))

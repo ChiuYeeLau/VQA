@@ -86,11 +86,12 @@ class Answer_Generator():
 
 		# Calculate loss
 		loss = tf.reduce_mean(cross_entropy)
-		return loss, image, question, label
+		return loss, image, question, answer, label
 
 	def build_generator(self):
 		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
 		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+		answer = 
 
 		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
 		loss = 0.0
@@ -121,7 +122,7 @@ class Answer_Generator():
 		# FINAL ANSWER
 		generated_ANS = tf.nn.xw_plus_b(scores_drop, self.embed_scor_W, self.embed_scor_b)
 
-		return generated_ANS, image, question
+		return generated_ANS, image, question, answer
 
 #####################################################
 #                 Global Parameters		    #  
@@ -157,7 +158,7 @@ max_words_q = 26
 num_answer = 1000
 #####################################################
 
-def right_align(seq,lengths):
+def right_align(seq, lengths):
 	v = np.zeros(np.shape(seq))
 	N = np.shape(seq)[1]
 	for i in range(np.shape(seq)[0]):
@@ -174,7 +175,6 @@ def get_data():
 		data = json.load(data_file)
 	for key in data.keys():
 		dataset[key] = data[key]
-
 	# load image feature
 	print('loading image feature...')
 	with h5py.File(input_img_h5,'r') as hf:
@@ -195,14 +195,20 @@ def get_data():
 		tem = hf.get('img_pos_train')
 		# convert into 0~82459
 		train_data['img_list'] = np.array(tem)-1
-		# answer is 1~1000
-		#tem = hf.get('answers')
-		#train_data['answers'] = np.array(tem)-1
+		# answer
 		tem = hf.get('ans_train')
-		train_data['answers'] = tem
+		train_data['answer'] = np.array(tem)-1
 
-	print('question aligning')
+		tem = hf.get('ans_length_train')
+		train_data['length_a'] = np.array(tem)
+
+		tem = hf.get('target_train')
+		train_data['target'] = tem
+
+
+	print('question & answer aligning')
 	train_data['question'] = right_align(train_data['question'], train_data['length_q'])
+	train_data['answer'] = right_align(train_data['answer'], train_data['length_a'])
 
 	print('Normalizing image feature')
 	if img_norm:
@@ -212,6 +218,7 @@ def get_data():
 	return dataset, img_feature, train_data
 
 def get_data_test():
+
 	dataset = {}
 	test_data = {}
 	# load json file
@@ -220,7 +227,6 @@ def get_data_test():
 		data = json.load(data_file)
 	for key in data.keys():
 		dataset[key] = data[key]
-
 	# load image feature
 	print('loading image feature...')
 	with h5py.File(input_img_h5,'r') as hf:
@@ -243,15 +249,19 @@ def get_data_test():
 		# quiestion id
 		tem = hf.get('question_id_test')
 		test_data['ques_id'] = np.array(tem)
-		# MC_answer_test
-		#tem = hf.get('MC_ans_test')
-		#test_data['MC_ans_test'] = np.array(tem)
+		# answer
 		tem = hf.get('ans_test')
-		test_data['answer'] = tem
+		test_data['answer'] = np.array(tem)-1
 
+		tem = hf.get('ans_length_test')
+		test_data['length_a'] = np.array(tem)
+
+		tem = hf.get('target_test')
+		test_data['target'] = tem
 
 	print('question aligning')
 	test_data['question'] = right_align(test_data['question'], test_data['length_q'])
+	test_data['answer'] = right_align(test_data['answer'], test_data['length_a'])
 
 	print('Normalizing image feature')
 	if img_norm:
@@ -279,7 +289,7 @@ def train():
 		vocabulary_size = vocabulary_size,
 		drop_out_rate = 0.5)
 
-	tf_loss, tf_image, tf_question, tf_label = model.build_model()
+	tf_loss, tf_image, tf_question, tf_answer, tf_label = model.build_model()
 
 	sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True))
 	saver = tf.train.Saver(max_to_keep=100)
@@ -299,12 +309,14 @@ def train():
 	for itr in range(max_itr):
 		tStart = time.time()
 		# shuffle the training data
-		index = np.random.random_integers(0, num_train-1, batch_size)
+		index = np.random.random_integers(0, num_train-1, batch_size/2)
 
 		current_question = train_data['question'][index,:]
 		current_length_q = train_data['length_q'][index]
-		current_answers = train_data['answers'][index]
+		current_answer = train_data['answer'][index]
+		current_length_a = train_data['length_a'][index]
 		current_img_list = train_data['img_list'][index]
+		current_target = train_data['target'][index]
 		current_img = img_feature[current_img_list,:]
 
 		# do the training process!!!
@@ -313,8 +325,8 @@ def train():
 					feed_dict={
 						tf_image: current_img,
 						tf_question: current_question,
-						#### TODO
-						tf_label: current_answers
+						tf_answer: current_answer,
+						tf_label: current_target
 						})
 
 		current_learning_rate = lr*decay_factor
@@ -332,7 +344,6 @@ def train():
 	saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=n_epochs)
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
-
 
 def test(model_path='model_save/model-150000'):
 	print ('loading dataset...')
@@ -352,7 +363,7 @@ def test(model_path='model_save/model-150000'):
 			vocabulary_size = vocabulary_size,
 			drop_out_rate = 0)
 
-	tf_answer, tf_image, tf_question, = model.build_generator()
+	tf_proba, tf_image, tf_question, tf_answer = model.build_generator()
 
 	#sess = tf.InteractiveSession()
 	sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True))
@@ -361,18 +372,25 @@ def test(model_path='model_save/model-150000'):
 
 	tStart_total = time.time()
 	result = []
-	for current_batch_start_idx in xrange(0,num_test-1,batch_size):
+
+
+	## TODO batch size
+	
+
+	for current_batch_start_idx in xrange(0, num_test-1, batch_size):
 	#for current_batch_start_idx in xrange(0,3,batch_size):
 		tStart = time.time()
 		# set data into current*
 		if current_batch_start_idx + batch_size < num_test:
-			current_batch_file_idx = range(current_batch_start_idx,current_batch_start_idx+batch_size)
+			current_batch_file_idx = range(current_batch_start_idx, current_batch_start_idx + batch_size)
 		else:
-			current_batch_file_idx = range(current_batch_start_idx,num_test)
+			current_batch_file_idx = range(current_batch_start_idx, num_test)
 
 		current_question = test_data['question'][current_batch_file_idx,:]
 		current_length_q = test_data['length_q'][current_batch_file_idx]
 		current_img_list = test_data['img_list'][current_batch_file_idx]
+		current_answer = test_data['answer'][current_batch_file_idx,:]
+		current_length_a = test_data['length_a'][current_batch_file_idx]
 		current_ques_id  = test_data['ques_id'][current_batch_file_idx]
 		current_img = img_feature[current_img_list,:] # (batch_size, dim_image)
 
@@ -392,17 +410,18 @@ def test(model_path='model_save/model-150000'):
 
 
 		generated_ans = sess.run(
-				tf_answer,
+				tf_proba,
 				feed_dict={
 					tf_image: current_img,
-					tf_question: current_question
+					tf_question: current_question,
+					tf_answer: current_answer
 					})
 
 		top_ans = np.argmax(generated_ans, axis=1)
 
 
 		# initialize json list
-		for i in xrange(0,500):
+		for i in xrange(0, 500):
 			ans = dataset['ix_to_ans'][str(top_ans[i]+1)]
 			if(current_ques_id[i] == 0):
 				continue

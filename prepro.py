@@ -43,7 +43,7 @@ def prepro_question(imgs, params):
             ans_txt = tokenize(ans)
         img['processed_ans'] = ans_txt
 
-        if i < 10: print txt
+        if i < 10: print(txt)
         if i % 1000 == 0:
             sys.stdout.write("processing question %d/%d (%.2f%% done)   \r" %  (i, len(imgs), i*100.0/len(imgs)) )
             sys.stdout.flush()
@@ -79,7 +79,7 @@ def build_vocab_question(imgs, params):
 
     # lets now produce the final annotation
     # additional special UNK token we will use below to map infrequent words to
-    print 'inserting the special UNK token'
+    print('inserting the special UNK token')
     vocab.append('UNK')
 
     for img in imgs:
@@ -152,16 +152,16 @@ def encode_question(imgs, params, wtoi):
     return label_arrays, label_length, ans_arrays, ans_length, question_id
 
 
-def encode_answer(imgs, atoi):
+def encode_answer(imgs):
     N = len(imgs)
     ans_arrays = np.zeros(N, dtype='uint32')
 
     for i, img in enumerate(imgs):
-        ans_arrays[i] = atoi[img['ans']]
+        ans_arrays[i] = img['ans']
 
     return ans_arrays
 
-def encode_mc_answer(imgs, atoi):
+def encode_mc_answer(imgs):
     N = len(imgs)
     mc_ans_arrays = np.zeros((N, 18), dtype='uint32')
 
@@ -232,11 +232,9 @@ def main(params):
     unique_img_train, img_pos_train = get_unqiue_img(imgs_train)
     unique_img_test, img_pos_test = get_unqiue_img(imgs_test)
 
-    '''
     # get the answer encoding.
-    A = encode_answer(imgs_train, atoi)
-    MC_ans_test = encode_mc_answer(imgs_test, atoi)
-    '''
+    target_train = encode_answer(imgs_train)
+    target_test = encode_answer(imgs_test)
 
     # create output h5 file for training set.
     N = len(imgs_train)
@@ -245,7 +243,7 @@ def main(params):
     f.create_dataset("ques_length_train", dtype='uint32', data=ques_length_train)
     f.create_dataset("ans_train", dtype='uint32', data=ans_train)
     f.create_dataset("ans_length_train", dtype='uint32', data=ans_length_train)
-    # f.create_dataset("answers", dtype='uint32', data=A)
+    f.create_dataset("target_train", dtype='uint32', data=target_train)
     f.create_dataset("question_id_train", dtype='uint32', data=question_id_train)
     f.create_dataset("img_pos_train", dtype='uint32', data=img_pos_train)
 
@@ -255,7 +253,7 @@ def main(params):
     f.create_dataset("ans_length_test", dtype='uint32', data=ans_length_test)
     f.create_dataset("question_id_test", dtype='uint32', data=question_id_test)
     f.create_dataset("img_pos_test", dtype='uint32', data=img_pos_test)
-    # f.create_dataset("MC_ans_test", dtype='uint32', data=MC_ans_test)
+    f.create_dataset("target_test", dtype='uint32', data=target_test)
 
     f.close()
     print('wrote ', params['output_h5'])
@@ -274,8 +272,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # input json
-    parser.add_argument('--input_train_json', default = 'vqa_raw_train.json', help='input json file to process into hdf5')
-    parser.add_argument('--input_test_json', default = 'vqa_raw_test.json', help='input json file to process into hdf5')
+    parser.add_argument('--input_train_json',default = 'vqa_raw_train.json', help='input json file to process into hdf5')
+    parser.add_argument('--input_test_json',default = 'vqa_raw_test.json', help='input json file to process into hdf5')
     # num_ans: num of top answers
     parser.add_argument('--num_ans', default = 100, type=int, help='number of top answers for the final classifications.')
 

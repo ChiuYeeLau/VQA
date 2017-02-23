@@ -24,6 +24,8 @@ def main(params):
 			# add correct answer
 			train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': correct_ans, 'ans': 1})
 			mc_ans = QA['multiple_choices']
+			if len(mc_ans) != 3:
+				print len(mc_ans)
 			# add wrong answers
 			for wrong_ans in mc_ans:
 				train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': wrong_ans, 'ans': 0})
@@ -39,10 +41,12 @@ def main(params):
 
 	#     test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': mc_ans})
 
-	val_sz = len(data) // 5
 
-	test = train[:val_sz]
-	train = train[val_sz:]
+
+	val_sz = len(data)/(4*5)
+
+	test = train[:val_sz*4]
+	train = train[val_sz*4:]
 
 	json.dump(train, open('vqa_raw_train.json', 'w'))
 	json.dump(test, open('vqa_raw_test.json', 'w'))

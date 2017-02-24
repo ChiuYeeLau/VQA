@@ -1,14 +1,17 @@
+
 import json
 import os
 import argparse
 import pdb
+
+
 
 def main(params):
 	train = []
 	test = []
 	imdir='v7w_%s.jpg'
 	print 'Loading annotations and questions...'
-	data = json.load(open('/home/zwang15/data/visual7w/dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
+	data = json.load(open('dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
 	# pdb.set_trace()
 
 	for image in data:
@@ -21,6 +24,8 @@ def main(params):
 			# add correct answer
 			train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': correct_ans, 'ans': 1})
 			mc_ans = QA['multiple_choices']
+			if len(mc_ans) != 3:
+				print len(mc_ans)
 			# add wrong answers
 			for wrong_ans in mc_ans:
 				train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': wrong_ans, 'ans': 0})
@@ -36,7 +41,9 @@ def main(params):
 
 	#     test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': mc_ans})
 
-	val_sz = len(data) / (4*5)
+
+
+	val_sz = len(data)/(4*5)
 
 	test = train[:val_sz*4]
 	train = train[val_sz*4:]
@@ -46,7 +53,7 @@ def main(params):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--data_set', default = 'telling', help = 'which data set, telling or pointing')
+	parser.add_argument('--data_set', default = 'telling',help = 'which data set, telling or pointing')
 	args = parser.parse_args()
 	params = vars(args) # convert to ordinary dict
 	main(params)

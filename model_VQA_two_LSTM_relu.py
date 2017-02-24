@@ -25,19 +25,26 @@ class Answer_Generator():
 		self.drop_out_rate = drop_out_rate
 
 		# Before-LSTM-embedding
-		self.embed_BLSTM_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_BLSTM_W')
+		self.embed_BLSTM_Q_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_BLSTM_Q_W')
+		self.embed_BLSTM_A_W = tf.Variable(tf.random_uniform([self.vocabulary_size, self.input_embedding_size], -0.08, 0.08), name='embed_BLSTM_A_W')
 
 		# encoder: RNN body
-		self.lstm_1 = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True,state_is_tuple=False)
-		self.lstm_dropout_1 = rnn_cell.DropoutWrapper(self.lstm_1, output_keep_prob = 1 - self.drop_out_rate)
-		self.lstm_2 = rnn_cell.LSTMCell(rnn_size, rnn_size, use_peepholes=True,state_is_tuple=False)
-		self.lstm_dropout_2 = rnn_cell.DropoutWrapper(self.lstm_2, output_keep_prob = 1 - self.drop_out_rate)
-		self.stacked_lstm = rnn_cell.MultiRNNCell([self.lstm_dropout_1, self.lstm_dropout_2],state_is_tuple=False)
+		self.lstm_1_q = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True,state_is_tuple=False)
+		self.lstm_dropout_1_q = rnn_cell.DropoutWrapper(self.lstm_1_q, output_keep_prob = 1 - self.drop_out_rate)
+		self.lstm_2_q = rnn_cell.LSTMCell(rnn_size, rnn_size, use_peepholes=True,state_is_tuple=False)
+		self.lstm_dropout_2_q = rnn_cell.DropoutWrapper(self.lstm_2_q, output_keep_prob = 1 - self.drop_out_rate)
+		self.stacked_lstm_q = rnn_cell.MultiRNNCell([self.lstm_dropout_1_q, self.lstm_dropout_2_q],state_is_tuple=False)
+
+		self.lstm_1_a = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True,state_is_tuple=False)
+		self.lstm_dropout_1_a = rnn_cell.DropoutWrapper(self.lstm_1_a, output_keep_prob = 1 - self.drop_out_rate)
+		self.lstm_2_a = rnn_cell.LSTMCell(rnn_size, rnn_size, use_peepholes=True,state_is_tuple=False)
+		self.lstm_dropout_2_a = rnn_cell.DropoutWrapper(self.lstm_2_a, output_keep_prob = 1 - self.drop_out_rate)
+		self.stacked_lstm_a = rnn_cell.MultiRNNCell([self.lstm_dropout_1_a, self.lstm_dropout_2_a],state_is_tuple=False)
 
 		# question-embedding W1
 		self.embed_Q_W = tf.Variable(tf.random_uniform([2*rnn_size*rnn_layer, self.dim_hidden], -0.08,0.08),name='embed_Q_W')
 		self.embed_Q_b = tf.Variable(tf.random_uniform([self.dim_hidden], -0.08, 0.08), name='embed_Q_b')
-
+		
 		# Answer-embedding W3
 		self.embed_A_W = tf.Variable(tf.random_uniform([2*rnn_size*rnn_layer, self.dim_hidden], -0.08,0.08),name='embed_A_W')
 		self.embed_A_b = tf.Variable(tf.random_uniform([self.dim_hidden], -0.08, 0.08), name='embed_A_b')
@@ -57,48 +64,57 @@ class Answer_Generator():
 		self.embed_QI_b = tf.Variable(tf.random_uniform([dim_hidden], -0.08, 0.08), name='embed_QI_b')
 
 	def build_model(self):
-		image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
-		question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
-		answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
-		label = tf.placeholder(tf.float32, [self.batch_size/2,2])
-
-		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
-		state_que = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
-		state_ans = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
+		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
+		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+		answer = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+		label = tf.placeholder(tf.float32, [self.batch_size,2])
+		
+		#state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
+		state_q = tf.zeros([self.batch_size, self.stacked_lstm_q.state_size])  #zhe
+		state_a = tf.zeros([self.batch_size, self.stacked_lstm_a.state_size])  #zhe
 		loss = 0.0
-		question_ans = tf.concat(0, [question, answer])
+		#question_ans = tf.concat(0, [question, answer])
 		for i in range(max_words_q):
 			if i==0:
-				blstm_emb_linear = tf.zeros([self.batch_size, self.input_embedding_size])
+				blstm_emb_linear_q = tf.zeros([self.batch_size, self.input_embedding_size])
 			else:
 				tf.get_variable_scope().reuse_variables()
-				blstm_emb_linear = tf.nn.embedding_lookup(self.embed_BLSTM_W, question_ans[:,i-1])
-			blstm_emb_drop = tf.nn.dropout(blstm_emb_linear, 1-self.drop_out_rate)
-			blstm_emb = tf.tanh(blstm_emb_drop)
+				blstm_emb_linear_q = tf.nn.embedding_lookup(self.embed_BLSTM_Q_W, question[:,i-1])
+			blstm_emb_drop_q = tf.nn.dropout(blstm_emb_linear_q, 1-self.drop_out_rate)
+			blstm_emb_q = tf.tanh(blstm_emb_drop_q)
 
-			output, state = self.stacked_lstm(blstm_emb, state)
-			state_que = state[0:250,:]    #zhe
-			state_ans = state[250:,:]  #zhe
+			output_q, state_q = self.stacked_lstm_q(blstm_emb_q, state_q)
+			#state_que = state[0:250,:]    #zhe
+			#state_ans = state[250:,:]  #zhe
+		for i in range(max_words_q):
+			if i==0:
+				blstm_emb_linear_a = tf.zeros([self.batch_size, self.input_embedding_size])
+			else:
+				tf.get_variable_scope().reuse_variables()
+				blstm_emb_linear_a = tf.nn.embedding_lookup(self.embed_BLSTM_A_W, answer[:,i-1])
+			blstm_emb_drop_a = tf.nn.dropout(blstm_emb_linear_a, 1-self.drop_out_rate)
+			blstm_emb_a = tf.tanh(blstm_emb_drop_a)
 
-
+			output_a, state_a = self.stacked_lstm_a(blstm_emb_a, state_a)
+		
 		# multimodal (fusing question & image)
-		Q_drop = tf.nn.dropout(state_que, 1-self.drop_out_rate)
+		Q_drop = tf.nn.dropout(state_q, 1-self.drop_out_rate)
 		Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
-		Q_emb = tf.tanh(Q_linear)
+		Q_emb = tf.relu(Q_linear)
 
 		image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
 		image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
-		image_emb = tf.tanh(image_linear)
+		image_emb = tf.relu(image_linear)
 
-		A_drop = tf.nn.dropout(state_ans, 1-self.drop_out_rate)
+		A_drop = tf.nn.dropout(state_a, 1-self.drop_out_rate)
 		A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
-		A_emb = tf.tanh(A_linear)
+		A_emb = tf.relu(A_linear)
 
 		QI = tf.mul(Q_emb, image_emb)
 
 		QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
 		QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
-		QI_emb = tf.tanh(QI_linear)
+		QI_emb = tf.relu(QI_linear)
 
 		QIA = tf.mul(QI_emb, A_emb)
 		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)   #zhe
@@ -116,27 +132,35 @@ class Answer_Generator():
 		question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
 		answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
 
-		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
-		state_que = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
-		state_ans = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
-		question_ans = tf.concat(0, [question, answer])
+		state_q = tf.zeros([self.batch_size, self.stacked_lstm_q.state_size])  #zhe
+		state_a = tf.zeros([self.batch_size, self.stacked_lstm_a.state_size])  #zhe
 		loss = 0.0
+		#question_ans = tf.concat(0, [question, answer])
 		for i in range(max_words_q):
 			if i==0:
-				blstm_emb_linear = tf.zeros([self.batch_size, self.input_embedding_size])
+				blstm_emb_linear_q = tf.zeros([self.batch_size, self.input_embedding_size])
 			else:
 				tf.get_variable_scope().reuse_variables()
-				blstm_emb_linear = tf.nn.embedding_lookup(self.embed_BLSTM_W, question_ans[:,i-1])
-			blstm_emb_drop = tf.nn.dropout(blstm_emb_linear, 1-self.drop_out_rate)
-			blstm_emb = tf.tanh(blstm_emb_drop)
+				blstm_emb_linear_q = tf.nn.embedding_lookup(self.embed_BLSTM_Q_W, question[:,i-1])
+			blstm_emb_drop_q = tf.nn.dropout(blstm_emb_linear_q, 1-self.drop_out_rate)
+			blstm_emb_q = tf.tanh(blstm_emb_drop_q)
 
-			output, state = self.stacked_lstm(blstm_emb, state)
-			state_que = state[0:250,:]    #zhe
-			state_ans = state[250:,:]  #zhe
+			output_q, state_q = self.stacked_lstm_q(blstm_emb_q, state_q)
+			#state_que = state[0:250,:]    #zhe
+			#state_ans = state[250:,:]  #zhe
+		for i in range(max_words_q):
+			if i==0:
+				blstm_emb_linear_a = tf.zeros([self.batch_size, self.input_embedding_size])
+			else:
+				tf.get_variable_scope().reuse_variables()
+				blstm_emb_linear_a = tf.nn.embedding_lookup(self.embed_BLSTM_A_W, answer[:,i-1])
+			blstm_emb_drop_a = tf.nn.dropout(blstm_emb_linear_a, 1-self.drop_out_rate)
+			blstm_emb_a = tf.tanh(blstm_emb_drop_a)
 
-
+			output_a, state_a = self.stacked_lstm_a(blstm_emb_a, state_a)
+		
 		# multimodal (fusing question & image)
-		Q_drop = tf.nn.dropout(state_que, 1-self.drop_out_rate)
+		Q_drop = tf.nn.dropout(state_q, 1-self.drop_out_rate)
 		Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
 		Q_emb = tf.tanh(Q_linear)
 
@@ -144,7 +168,7 @@ class Answer_Generator():
 		image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
 		image_emb = tf.tanh(image_linear)
 
-		A_drop = tf.nn.dropout(state_ans, 1-self.drop_out_rate)
+		A_drop = tf.nn.dropout(state_a, 1-self.drop_out_rate)
 		A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
 		A_emb = tf.tanh(A_linear)
 
@@ -155,7 +179,7 @@ class Answer_Generator():
 		QI_emb = tf.tanh(QI_linear)
 
 		QIA = tf.mul(QI_emb, A_emb)
-		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)   #zhe
+		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)
 		# Calculate cross entropy
 		#cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
 		generated_ANS = tf.transpose(scores_emb)
@@ -163,11 +187,11 @@ class Answer_Generator():
 		return generated_ANS, image, question, answer
 
 #####################################################
-#                 Global Parameters		    #
+#                 Global Parameters		    #  
 #####################################################
 print('Loading parameters ...')
 # Data input setting
-input_img_h5 = './data_img.h5'
+input_img_h5 = './data_img2.h5'
 input_ques_h5 = './data_prepro.h5'
 input_json = './data_prepro.json'
 
@@ -253,7 +277,7 @@ def get_data():
 		tem = np.sqrt(np.sum(np.multiply(img_feature, img_feature), axis=1))
 		img_feature = np.divide(img_feature, np.transpose(np.tile(tem,(4096,1))))
 
-
+	
 
 	return dataset, img_feature, train_data
 
@@ -340,7 +364,7 @@ def train():
 
 	# gradient clipping
 	gvs = opt.compute_gradients(tf_loss,tvars)
-	clipped_gvs = [(tf.clip_by_value(grad, -500.0, 500.0), var) for grad, var in gvs]  ## either 100 or 10000 will result in Nan, original is 100
+	clipped_gvs = [(tf.clip_by_value(grad, -100.0, 100.0), var) for grad, var in gvs]  ## either 100 or 10000 will result in Nan, original is 100
 	train_op = opt.apply_gradients(clipped_gvs)
 
 	tf.initialize_all_variables().run()
@@ -349,7 +373,7 @@ def train():
 	for itr in range(max_itr):
 		tStart = time.time()
 		# shuffle the training data
-		index = np.random.random_integers(0, num_train-1, batch_size/2)
+		index = np.random.random_integers(0, num_train-1, batch_size)
 
 		current_question = train_data['question'][index,:]
 		current_length_q = train_data['length_q'][index]
@@ -377,7 +401,7 @@ def train():
 			print ("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval())
 			#print ("Iteration: ", itr, " scores: ", scores, " label: ", current_target)
 			print ("Time Cost:", round(tStop - tStart,2), "s")
-		if np.mod(itr, 1800) == 0:
+		if np.mod(itr, 2500) == 0:
 			print ("Iteration ", itr, " is done. Saving the model ...")
 			saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
 
@@ -386,13 +410,10 @@ def train():
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 
-def test(model_path='model_save/model-1800'):
+def test(model_path='model_save/model-150000'):
 	print ('loading dataset...')
 	dataset, img_feature, test_data = get_data_test()
 	num_test = test_data['question'].shape[0]
-
-	print('numtest: ' + str(num_test))
-
 	vocabulary_size = len(dataset['ix_to_word'].keys())
 	print ('vocabulary_size : ' + str(vocabulary_size))
 
@@ -417,12 +438,12 @@ def test(model_path='model_save/model-1800'):
 	tStart_total = time.time()
 	result = {}
 
-	for current_batch_start_idx in xrange(0, num_test-1, batch_size/2):
+	for current_batch_start_idx in xrange(0, num_test-1, batch_size):
 	#for current_batch_start_idx in xrange(0,3,batch_size):
 		tStart = time.time()
 		# set data into current*
-		if current_batch_start_idx + batch_size/2 < num_test:
-			current_batch_file_idx = range(current_batch_start_idx, current_batch_start_idx + batch_size/2)
+		if current_batch_start_idx + batch_size < num_test:
+			current_batch_file_idx = range(current_batch_start_idx, current_batch_start_idx + batch_size)
 		else:
 			current_batch_file_idx = range(current_batch_start_idx, num_test)
 
@@ -436,23 +457,18 @@ def test(model_path='model_save/model-1800'):
 		current_img = img_feature[current_img_list,:] # (batch_size, dim_image)
 
 		# deal with the last batch
-		if(len(current_img)<250):
-				pad_img = np.zeros((250-len(current_img),dim_image),dtype=np.int)
-				pad_q = np.zeros((250-len(current_img),max_words_q),dtype=np.int)
-				pad_q_len = np.zeros(250-len(current_length_q),dtype=np.int)
-				pad_q_id = np.zeros(250-len(current_length_q),dtype=np.int)
-				pad_img_list = np.zeros(250-len(current_length_q),dtype=np.int)
-				pad_a = np.zeros((250-len(current_img),max_words_q),dtype=np.int)
-				pad_a_len = np.zeros(250-len(current_length_a),dtype=np.int)
-				pad_target = np.zeros((250-len(current_target), 2),dtype=np.int)
+		if(len(current_img)<500):
+				pad_img = np.zeros((500-len(current_img),dim_image),dtype=np.int)
+				pad_q = np.zeros((500-len(current_img),max_words_q),dtype=np.int)
+				pad_q_len = np.zeros(500-len(current_length_q),dtype=np.int)
+				pad_q_id = np.zeros(500-len(current_length_q),dtype=np.int)
+				pad_ques_id = np.zeros(500-len(current_length_q),dtype=np.int)
+				pad_img_list = np.zeros(500-len(current_length_q),dtype=np.int)
 				current_img = np.concatenate((current_img, pad_img))
 				current_question = np.concatenate((current_question, pad_q))
 				current_length_q = np.concatenate((current_length_q, pad_q_len))
 				current_ques_id = np.concatenate((current_ques_id, pad_q_id))
 				current_img_list = np.concatenate((current_img_list, pad_img_list))
-				current_answer = np.concatenate((current_answer, pad_a))
-				current_length_a = np.concatenate((current_length_a, pad_a_len))
-				current_target = np.concatenate((current_target, pad_target))
 
 		pred_proba = sess.run(
 				tf_proba,
@@ -463,48 +479,44 @@ def test(model_path='model_save/model-1800'):
 					})
 
 		# initialize json list
-		pred_proba = np.transpose(pred_proba)
-		assert(current_target.shape == (250,2))
-		assert(pred_proba.shape == (250,2))
-
+		assert(current_target.shape == (500,2))
+		assert(pred_proba.shape == (500,2))
 		target, prob = getMaximumLikelihood(current_target, pred_proba)
 
-		for i in list(range(0, 250)):
-			if str(current_ques_id[i]) not in result:
-				result[str(current_ques_id[i])] = [target[i], prob[i]]
+		for i in xrange(0, 500):
+			if current_ques_id[i] not in result:
+				result[current_ques_id[i]] = [target[i], prob[i]]
 			else:
-				if result[str(current_ques_id[i])][1] < prob[i]:
-					result[str(current_ques_id[i])] = [target[i], prob[i]]
+				if result[current_ques_id[i]][1] < prob[i]:
+					result[current_ques_id[i]] = [target[i], prob[i]]
 
 		tStop = time.time()
 		print ("Testing batch: ", current_batch_file_idx[0])
 		print ("Time Cost:", round(tStop - tStart,2), "s")
-
+		
 	print ("Testing done.")
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 	# Save to JSON
 	print ('Saving result...')
-	acc = 0
-	for k,v in result.iteritems():
-		acc += v[0]
-	print(str(acc*1.0/len(result)))
-	dd = json.dump(result,open('data.json','w'))
+	my_list = list(result)
+	dd = json.dump(my_list,open('data.json','w'))
 
 def getMaximumLikelihood(raw_target, raw_prob):
-	target = np.zeros((250,))
-	prob = np.zeros((250,))
-	for i in list(range(0, 250)):
-		prob[i] = softmax(raw_prob[i,0], raw_prob[i,1])
-		target[i] = raw_target[i,0]
+	target = np.zeros((500,))
+	prob = np.zeros((500,))
+	for i in list(range(0, 500)):
+		if raw_prob[i,0] >= raw_prob[i,1]:
+			prob[i] = raw_prob[i,0]
+			target = raw_target[i,0]
+		else:
+			prob[i] = raw_prob[i,1]
+			target = raw_target[i,1]
 
 	return target, prob
 
-def softmax(a, b):
-	return np.exp(a)/(np.exp(a) + np.exp(b))
-
 if __name__ == '__main__':
-	# with tf.device('/gpu:'+str(0)):
-	#	train()
+	with tf.device('/gpu:'+str(0)):
+		train()
 	with tf.device('/gpu:'+str(1)):
 		test()

@@ -60,7 +60,7 @@ class Answer_Generator():
 		image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
 		question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
 		answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
-		label = tf.placeholder(tf.float32, [self.batch_size/2, 2])
+		label = tf.placeholder(tf.float32, [self.batch_size/2,2])
 
 		state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
 		state_que = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
@@ -104,10 +104,9 @@ class Answer_Generator():
 		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)   #zhe
 		# Calculate cross entropy
 		#cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
-		# scores = tf.transpose(scores_emb)
-		scores = scores_emb
-		# pdb.set_trace()
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=scores, labels=label)   #zhe
+		#scores = scores_emb#tf.transpose(scores_emb)
+		#pdb.set_trace()
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
 		# Calculate loss
 		loss = tf.reduce_mean(cross_entropy)
 		return loss, image, question, answer, label
@@ -173,7 +172,7 @@ input_ques_h5 = './data_prepro.h5'
 input_json = './data_prepro.json'
 
 # Train Parameters setting
-learning_rate = 0.003#0.0003			# learning rate for rmsprop
+learning_rate = 0.0003			# learning rate for rmsprop
 #starter_learning_rate = 3e-4
 learning_rate_decay_start = -1		# at what iteration to start decaying learning rate? (-1 = dont)
 batch_size = 500			# batch_size for each iterations
@@ -242,8 +241,6 @@ def get_data():
 		train_data['length_a'] = np.array(tem)
 
 		tem = hf.get('target_train')
-		# print('tem '+str(tem))
-		# pdb.set_trace()
 		train_data['target'] = np.transpose(np.vstack((np.array(tem), 1-np.array(tem))))
 
 
@@ -300,7 +297,7 @@ def get_data_test():
 		test_data['length_a'] = np.array(tem)
 
 		tem = hf.get('target_test')
-		test_data['target'] = tem
+		test_data['target'] = np.transpose(np.vstack((np.array(tem), 1-np.array(tem))))
 
 	print('question aligning')
 	test_data['question'] = right_align(test_data['question'], test_data['length_q'])
@@ -378,8 +375,9 @@ def train():
 		tStop = time.time()
 		if np.mod(itr, 100) == 0:
 			print ("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval())
+			#print ("Iteration: ", itr, " scores: ", scores, " label: ", current_target)
 			print ("Time Cost:", round(tStop - tStart,2), "s")
-		if np.mod(itr, 15000) == 0:
+		if np.mod(itr, 1800) == 0:
 			print ("Iteration ", itr, " is done. Saving the model ...")
 			saver.save(sess, os.path.join(checkpoint_path, 'model'), global_step=itr)
 
@@ -388,10 +386,13 @@ def train():
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 
-def test(model_path='model_save/model-150000'):
+def test(model_path='model_save/model-1800'):
 	print ('loading dataset...')
 	dataset, img_feature, test_data = get_data_test()
 	num_test = test_data['question'].shape[0]
+
+	print('numtest: ' + str(num_test))
+
 	vocabulary_size = len(dataset['ix_to_word'].keys())
 	print ('vocabulary_size : ' + str(vocabulary_size))
 
@@ -416,12 +417,12 @@ def test(model_path='model_save/model-150000'):
 	tStart_total = time.time()
 	result = {}
 
-	for current_batch_start_idx in xrange(0, num_test-1, batch_size):
+	for current_batch_start_idx in xrange(0, num_test-1, batch_size/2):
 	#for current_batch_start_idx in xrange(0,3,batch_size):
 		tStart = time.time()
 		# set data into current*
-		if current_batch_start_idx + batch_size < num_test:
-			current_batch_file_idx = range(current_batch_start_idx, current_batch_start_idx + batch_size)
+		if current_batch_start_idx + batch_size/2 < num_test:
+			current_batch_file_idx = range(current_batch_start_idx, current_batch_start_idx + batch_size/2)
 		else:
 			current_batch_file_idx = range(current_batch_start_idx, num_test)
 
@@ -435,18 +436,23 @@ def test(model_path='model_save/model-150000'):
 		current_img = img_feature[current_img_list,:] # (batch_size, dim_image)
 
 		# deal with the last batch
-		if(len(current_img)<500):
-				pad_img = np.zeros((500-len(current_img),dim_image),dtype=np.int)
-				pad_q = np.zeros((500-len(current_img),max_words_q),dtype=np.int)
-				pad_q_len = np.zeros(500-len(current_length_q),dtype=np.int)
-				pad_q_id = np.zeros(500-len(current_length_q),dtype=np.int)
-				pad_ques_id = np.zeros(500-len(current_length_q),dtype=np.int)
-				pad_img_list = np.zeros(500-len(current_length_q),dtype=np.int)
+		if(len(current_img)<250):
+				pad_img = np.zeros((250-len(current_img),dim_image),dtype=np.int)
+				pad_q = np.zeros((250-len(current_img),max_words_q),dtype=np.int)
+				pad_q_len = np.zeros(250-len(current_length_q),dtype=np.int)
+				pad_q_id = np.zeros(250-len(current_length_q),dtype=np.int)
+				pad_img_list = np.zeros(250-len(current_length_q),dtype=np.int)
+				pad_a = np.zeros((250-len(current_img),max_words_q),dtype=np.int)
+				pad_a_len = np.zeros(250-len(current_length_a),dtype=np.int)
+				pad_target = np.zeros((250-len(current_target), 2),dtype=np.int)
 				current_img = np.concatenate((current_img, pad_img))
 				current_question = np.concatenate((current_question, pad_q))
 				current_length_q = np.concatenate((current_length_q, pad_q_len))
 				current_ques_id = np.concatenate((current_ques_id, pad_q_id))
 				current_img_list = np.concatenate((current_img_list, pad_img_list))
+				current_answer = np.concatenate((current_answer, pad_a))
+				current_length_a = np.concatenate((current_length_a, pad_a_len))
+				current_target = np.concatenate((current_target, pad_target))
 
 		pred_proba = sess.run(
 				tf_proba,
@@ -457,12 +463,18 @@ def test(model_path='model_save/model-150000'):
 					})
 
 		# initialize json list
-		for i in xrange(0, 500):
-			if current_ques_id[i] not in intermediate_result:
-				result[current_ques_id[i]] = [current_target[i], pred_proba]
+		pred_proba = np.transpose(pred_proba)
+		assert(current_target.shape == (250,2))
+		assert(pred_proba.shape == (250,2))
+
+		target, prob = getMaximumLikelihood(current_target, pred_proba)
+
+		for i in list(range(0, 250)):
+			if str(current_ques_id[i]) not in result:
+				result[str(current_ques_id[i])] = [target[i], prob[i]]
 			else:
-				if result[current_ques_id[i]][1] < pred_proba:
-					result[current_ques_id[i]] = [current_target[i], pred_proba]
+				if result[str(current_ques_id[i])][1] < prob[i]:
+					result[str(current_ques_id[i])] = [target[i], prob[i]]
 
 		tStop = time.time()
 		print ("Testing batch: ", current_batch_file_idx[0])
@@ -473,11 +485,26 @@ def test(model_path='model_save/model-150000'):
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 	# Save to JSON
 	print ('Saving result...')
-	my_list = list(result)
-	dd = json.dump(my_list,open('data.json','w'))
+	acc = 0
+	for k,v in result.iteritems():
+		acc += v[0]
+	print(str(acc*1.0/len(result)))
+	dd = json.dump(result,open('data.json','w'))
+
+def getMaximumLikelihood(raw_target, raw_prob):
+	target = np.zeros((250,))
+	prob = np.zeros((250,))
+	for i in list(range(0, 250)):
+		prob[i] = softmax(raw_prob[i,0], raw_prob[i,1])
+		target[i] = raw_target[i,0]
+
+	return target, prob
+
+def softmax(a, b):
+	return np.exp(a)/(np.exp(a) + np.exp(b))
 
 if __name__ == '__main__':
-	with tf.device('/gpu:'+str(0)):
-		train()
+	# with tf.device('/gpu:'+str(0)):
+	#	train()
 	with tf.device('/gpu:'+str(1)):
 		test()

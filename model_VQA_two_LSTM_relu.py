@@ -111,6 +111,7 @@ class Answer_Generator():
 		A_emb = tf.nn.relu(A_linear)
 
 		QI = tf.mul(Q_emb, image_emb)
+
 		QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
 		QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
 		QI_emb = tf.nn.relu(QI_linear)

@@ -128,9 +128,9 @@ class Answer_Generator():
 		return loss, image, question, answer, label
 
 	def build_generator(self):
-		image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
-		question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
-		answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
+		image = tf.placeholder(tf.float32, [self.batch_size, self.dim_image])
+		question = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
+		answer = tf.placeholder(tf.int32, [self.batch_size, self.max_words_q])
 
 		state_q = tf.zeros([self.batch_size, self.stacked_lstm_q.state_size])  #zhe
 		state_a = tf.zeros([self.batch_size, self.stacked_lstm_a.state_size])  #zhe
@@ -162,26 +162,24 @@ class Answer_Generator():
 		# multimodal (fusing question & image)
 		Q_drop = tf.nn.dropout(state_q, 1-self.drop_out_rate)
 		Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
-		Q_emb = tf.tanh(Q_linear)
+		Q_emb = tf.nn。relu(Q_linear)
 
 		image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
 		image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
-		image_emb = tf.tanh(image_linear)
+		image_emb = tf.nn.relu(image_linear)
 
 		A_drop = tf.nn.dropout(state_a, 1-self.drop_out_rate)
 		A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
-		A_emb = tf.tanh(A_linear)
+		A_emb = tf.nn.relu(A_linear)
 
 		QI = tf.mul(Q_emb, image_emb)
 
 		QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
 		QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
-		QI_emb = tf.tanh(QI_linear)
+		QI_emb = tf.nn.relu(QI_linear)
 
 		QIA = tf.mul(QI_emb, A_emb)
-		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)
-		# Calculate cross entropy
-		#cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
+		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)   #zhe
 		generated_ANS = tf.transpose(scores_emb)
 
 		return generated_ANS, image, question, answer
@@ -410,10 +408,13 @@ def train():
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 
-def test(model_path='model_save/model-150000'):
+def test(model_path='model_save/model-40000'):
 	print ('loading dataset...')
 	dataset, img_feature, test_data = get_data_test()
 	num_test = test_data['question'].shape[0]
+
+	print('numtest: ' + str(num_test))
+
 	vocabulary_size = len(dataset['ix_to_word'].keys())
 	print ('vocabulary_size : ' + str(vocabulary_size))
 
@@ -462,13 +463,18 @@ def test(model_path='model_save/model-150000'):
 				pad_q = np.zeros((500-len(current_img),max_words_q),dtype=np.int)
 				pad_q_len = np.zeros(500-len(current_length_q),dtype=np.int)
 				pad_q_id = np.zeros(500-len(current_length_q),dtype=np.int)
-				pad_ques_id = np.zeros(500-len(current_length_q),dtype=np.int)
 				pad_img_list = np.zeros(500-len(current_length_q),dtype=np.int)
+				pad_a = np.zeros((500-len(current_img),max_words_q),dtype=np.int)
+				pad_a_len = np.zeros(500-len(current_length_a),dtype=np.int)
+				pad_target = np.zeros((500-len(current_target), 2),dtype=np.int)
 				current_img = np.concatenate((current_img, pad_img))
 				current_question = np.concatenate((current_question, pad_q))
 				current_length_q = np.concatenate((current_length_q, pad_q_len))
 				current_ques_id = np.concatenate((current_ques_id, pad_q_id))
 				current_img_list = np.concatenate((current_img_list, pad_img_list))
+				current_answer = np.concatenate((current_answer, pad_a))
+				current_length_a = np.concatenate((current_length_a, pad_a_len))
+				current_target = np.concatenate((current_target, pad_target))
 
 		pred_proba = sess.run(
 				tf_proba,
@@ -479,41 +485,45 @@ def test(model_path='model_save/model-150000'):
 					})
 
 		# initialize json list
+		pred_proba = np.transpose(pred_proba)
 		assert(current_target.shape == (500,2))
 		assert(pred_proba.shape == (500,2))
+
 		target, prob = getMaximumLikelihood(current_target, pred_proba)
 
-		for i in xrange(0, 500):
-			if current_ques_id[i] not in result:
-				result[current_ques_id[i]] = [target[i], prob[i]]
+		for i in list(range(0, 500)):
+			if str(current_ques_id[i]) not in result:
+				result[str(current_ques_id[i])] = [target[i], prob[i]]
 			else:
-				if result[current_ques_id[i]][1] < prob[i]:
-					result[current_ques_id[i]] = [target[i], prob[i]]
+				if result[str(current_ques_id[i])][1] < prob[i]:
+					result[str(current_ques_id[i])] = [target[i], prob[i]]
 
 		tStop = time.time()
 		print ("Testing batch: ", current_batch_file_idx[0])
 		print ("Time Cost:", round(tStop - tStart,2), "s")
-		
+
 	print ("Testing done.")
 	tStop_total = time.time()
 	print ("Total Time Cost:", round(tStop_total - tStart_total,2), "s")
 	# Save to JSON
 	print ('Saving result...')
-	my_list = list(result)
-	dd = json.dump(my_list,open('data.json','w'))
+	acc = 0
+	for k,v in result.items():
+		acc += v[0]
+	print(str(acc*1.0/len(result)))
+	dd = json.dump(result,open('data.json','w'))
 
 def getMaximumLikelihood(raw_target, raw_prob):
 	target = np.zeros((500,))
 	prob = np.zeros((500,))
 	for i in list(range(0, 500)):
-		if raw_prob[i,0] >= raw_prob[i,1]:
-			prob[i] = raw_prob[i,0]
-			target = raw_target[i,0]
-		else:
-			prob[i] = raw_prob[i,1]
-			target = raw_target[i,1]
+		prob[i] = softmax(raw_prob[i,0], raw_prob[i,1])
+		target[i] = raw_target[i,0]
 
 	return target, prob
+
+def softmax(a, b):
+	return np.exp(a)/(np.exp(a) + np.exp(b))
 
 if __name__ == '__main__':
 	with tf.device('/gpu:'+str(0)):

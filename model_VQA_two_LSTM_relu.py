@@ -100,7 +100,6 @@ class Answer_Generator():
 		# multimodal (fusing question & image)
 		Q_drop = tf.nn.dropout(state_q, 1-self.drop_out_rate)
 		Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
-<<<<<<< HEAD
 		Q_emb = tf.nn.relu(Q_linear)
 
 		image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
@@ -110,27 +109,11 @@ class Answer_Generator():
 		A_drop = tf.nn.dropout(state_a, 1-self.drop_out_rate)
 		A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
 		A_emb = tf.nn.relu(A_linear)
-=======
-		Q_emb = tf.relu(Q_linear)
-
-		image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
-		image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
-		image_emb = tf.relu(image_linear)
-
-		A_drop = tf.nn.dropout(state_a, 1-self.drop_out_rate)
-		A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
-		A_emb = tf.relu(A_linear)
->>>>>>> 0937112572ec99de53b00135f18e06e3161a85f1
 
 		QI = tf.mul(Q_emb, image_emb)
-
 		QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
 		QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
-<<<<<<< HEAD
 		QI_emb = tf.nn.relu(QI_linear)
-=======
-		QI_emb = tf.relu(QI_linear)
->>>>>>> 0937112572ec99de53b00135f18e06e3161a85f1
 
 		QIA = tf.mul(QI_emb, A_emb)
 		scores_emb = tf.nn.xw_plus_b(QIA, self.embed_scor_W, self.embed_scor_b)   #zhe
@@ -207,11 +190,7 @@ class Answer_Generator():
 #####################################################
 print('Loading parameters ...')
 # Data input setting
-<<<<<<< HEAD
 input_img_h5 = './data_img.h5'
-=======
-input_img_h5 = './data_img2.h5'
->>>>>>> 0937112572ec99de53b00135f18e06e3161a85f1
 input_ques_h5 = './data_prepro.h5'
 input_json = './data_prepro.json'
 
@@ -538,10 +517,5 @@ def getMaximumLikelihood(raw_target, raw_prob):
 if __name__ == '__main__':
 	with tf.device('/gpu:'+str(0)):
 		train()
-<<<<<<< HEAD
 	#with tf.device('/gpu:'+str(1)):
 	#	test()
-=======
-	with tf.device('/gpu:'+str(1)):
-		test()
->>>>>>> 0937112572ec99de53b00135f18e06e3161a85f1

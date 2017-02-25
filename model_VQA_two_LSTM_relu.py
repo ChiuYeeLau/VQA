@@ -3,22 +3,14 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import os, h5py, sys, argparse
-<<<<<<< HEAD
 #import ipdb
-=======
-import ipdb
->>>>>>> 0937112572ec99de53b00135f18e06e3161a85f1
 import time
 import math
 import cv2
 import codecs, json
 from tensorflow.python.ops import rnn_cell
 from sklearn.metrics import average_precision_score
-<<<<<<< HEAD
 #import pdb
-=======
-import pdb
->>>>>>> 0937112572ec99de53b00135f18e06e3161a85f1
 
 class Answer_Generator():
 	def __init__(self, rnn_size, rnn_layer, batch_size, input_embedding_size, dim_image, dim_hidden, max_words_q, vocabulary_size, drop_out_rate):

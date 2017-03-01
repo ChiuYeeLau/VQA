@@ -13,6 +13,7 @@ def main(params):
 	print 'Loading annotations and questions...'
 	data = json.load(open('dataset_v7w_%s.json' %(params['data_set']), 'r'))["images"]
 	# pdb.set_trace()
+	pdb.set_trace()
 
 	for image in data:
 		# print image.keys()
@@ -22,13 +23,19 @@ def main(params):
 			image_path = imdir%(QA["image_id"])
 			question = QA['question']
 			# add correct answer
-			train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': correct_ans, 'ans': 1})
+			if image['split'] == 'test':
+				test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': correct_ans, 'ans': 1})
+			else:
+				train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': correct_ans, 'ans': 1})
 			mc_ans = QA['multiple_choices']
 			if len(mc_ans) != 3:
 				print len(mc_ans)
 			# add wrong answers
 			for wrong_ans in mc_ans:
-				train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': wrong_ans, 'ans': 0})
+				if image['split'] == 'test':
+					test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': wrong_ans, 'ans': 0})
+				else:
+					train.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': wrong_ans, 'ans': 0})
 
 	# subtype = 'val2014'
 	# for i in range(len(val_anno['annotations'])):
@@ -41,12 +48,6 @@ def main(params):
 
 	#     test.append({'ques_id': question_id, 'img_path': image_path, 'question': question, 'MC_ans': mc_ans})
 
-
-
-	val_sz = len(data)/(4*5)
-
-	test = train[:val_sz*4]
-	train = train[val_sz*4:]
 
 	json.dump(train, open('vqa_raw_train.json', 'w'))
 	json.dump(test, open('vqa_raw_test.json', 'w'))

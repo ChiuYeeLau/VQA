@@ -32,6 +32,7 @@ class Answer_Generator():
         self.embed_ques_W = tf.Variable(emb_matrix, name='embed_ques_W')
         # self.embed_ques_W.assign(emb_matrix)
 
+        '''
         # encoder: RNN body
         self.lstm_1 = rnn_cell.LSTMCell(rnn_size, input_embedding_size, use_peepholes=True,state_is_tuple=False)
         self.lstm_dropout_1 = rnn_cell.DropoutWrapper(self.lstm_1, output_keep_prob = 1 - self.drop_out_rate)
@@ -39,6 +40,7 @@ class Answer_Generator():
         self.lstm_dropout_2 = rnn_cell.DropoutWrapper(self.lstm_2, output_keep_prob = 1 - self.drop_out_rate)
         # self.stacked_lstm = rnn_cell.MultiRNNCell([self.lstm_dropout_1, self.lstm_dropout_2],state_is_tuple=False)
         self.stacked_lstm = rnn_cell.MultiRNNCell([self.lstm_dropout_1],state_is_tuple=False)
+        '''
 
         # question-embedding W1
         self.embed_Q_W = tf.Variable(tf.random_uniform([self.input_embedding_size, self.dim_hidden], -0.08,0.08),name='embed_Q_W')
@@ -66,18 +68,24 @@ class Answer_Generator():
         image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
         question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
         answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
+        question_length = tf.placeholder(tf.int32, [self.batch_size/2])
+        answer_length = tf.placeholder(tf.int32, [self.batch_size/2])
         label = tf.placeholder(tf.float32, [self.batch_size/2,2])
 
-        state = tf.zeros([self.batch_size, self.stacked_lstm.state_size])
-        state_que = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
-        state_ans = tf.zeros([self.batch_size/2, self.stacked_lstm.state_size])  #zhe
+        state = tf.zeros([self.batch_size, self.input_embedding_size])
+        state_que = tf.zeros([self.batch_size/2, self.input_embedding_size])  #zhe
+        state_ans = tf.zeros([self.batch_size/2, self.input_embedding_size])  #zhe
         loss = 0.0
         question_ans = tf.concat(0, [question, answer])
+        question_ans_length = tf.concat(0, [question_length, answer_length])
+        q_a_length = tf.reshape(question_ans_length, [-1, 1])    # Convert to a len(yp) x 1 matrix.
+        q_a_length = tf.tile(q_a_length, [1, self.input_embedding_size])  # Create multiple columns.
+        q_a_length = tf.cast(q_a_length, tf.float32)
 
         # pdb.set_trace()
 
         inputs = tf.nn.embedding_lookup(self.embed_ques_W, question_ans)
-        inputs = tf.reduce_sum(inputs, 1)
+        inputs = tf.div(tf.reduce_sum(inputs, 1), q_a_length)
         loss = 0.0
         state_que = inputs[0:250,:]
         state_ans = inputs[250:,:]
@@ -126,20 +134,31 @@ class Answer_Generator():
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
         # Calculate loss
         loss = tf.reduce_mean(cross_entropy)
-        return loss, image, question, answer, label
+        return loss, image, question, answer, question_length, answer_length, label
 
     def build_generator(self):
         image = tf.placeholder(tf.float32, [self.batch_size/2, self.dim_image])
         question = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
         answer = tf.placeholder(tf.int32, [self.batch_size/2, self.max_words_q])
 
+        question_length = tf.placeholder(tf.int32, [self.batch_size/2])
+        answer_length = tf.placeholder(tf.int32, [self.batch_size/2])
+
         state = tf.zeros([self.batch_size, self.input_embedding_size])
         state_que = tf.zeros([self.batch_size/2, self.input_embedding_size])  #zhe
         state_ans = tf.zeros([self.batch_size/2, self.input_embedding_size])  #zhe
         question_ans = tf.concat(0, [question, answer])
+        question_ans_length = tf.concat(0, [question_length, answer_length])
+
+        q_a_length = tf.reshape(question_ans_length, [-1, 1])    # Convert to a len(yp) x 1 matrix.
+        q_a_length = tf.tile(q_a_length, [1, self.input_embedding_size])  # Create multiple columns.
+        q_a_length = tf.cast(q_a_length, tf.float32)
+
+        # pdb.set_trace()
 
         inputs = tf.nn.embedding_lookup(self.embed_ques_W, question_ans)
-        inputs = tf.reduce_sum(inputs, 1)
+        inputs = tf.div(tf.reduce_sum(inputs, 1), q_a_length)
+
         loss = 0.0
         state_que = inputs[0:250,:]
         state_ans = inputs[250:,:]
@@ -186,7 +205,7 @@ class Answer_Generator():
         #cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=scores_emb, labels=label)   #zhe
         generated_ANS = tf.transpose(scores_emb)
 
-        return generated_ANS, image, question, answer
+        return generated_ANS, image, question, answer, question_length, answer_length
 
 #####################################################
 #                 Global Parameters         #
@@ -229,7 +248,7 @@ def right_align(seq, lengths):
     v = np.zeros(np.shape(seq))
     N = np.shape(seq)[1]
     for i in range(np.shape(seq)[0]):
-        v[i][N-lengths[i]:N-1]=seq[i][0:lengths[i]-1]
+        v[i][N-lengths[i]:N]=seq[i][0:lengths[i]]
     return v
 
 def get_data():
@@ -289,6 +308,9 @@ def get_data():
 
     return dataset, img_feature, train_data
 
+def get_nonzero_num(np_arr):
+    return (np_arr != 0).sum(1)
+
 def get_data_test():
 
     dataset = {}
@@ -337,6 +359,8 @@ def get_data_test():
     test_data['question'] = right_align(test_data['question'], test_data['length_q'])
     test_data['answer'] = right_align(test_data['answer'], test_data['length_a'])
 
+    # pdb.set_trace()
+
     print('Normalizing image feature')
     if img_norm:
         tem = np.sqrt(np.sum(np.multiply(img_feature, img_feature), axis=1))
@@ -366,7 +390,7 @@ def train():
         drop_out_rate = 0.5,
         emb_matrix = train_data['emb_matrix'])
 
-    tf_loss, tf_image, tf_question, tf_answer, tf_label = model.build_model()
+    tf_loss, tf_image, tf_question, tf_answer, tf_question_length, tf_answer_length, tf_label = model.build_model()
 
     sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True))
     saver = tf.train.Saver(max_to_keep=100)
@@ -398,6 +422,7 @@ def train():
         current_target = train_data['target'][index]
         current_img = img_feature_train[current_img_list,:]
 
+
         # do the training process!!!
         _, loss = sess.run(
                     [train_op, tf_loss],
@@ -405,7 +430,9 @@ def train():
                         tf_image: current_img,
                         tf_question: current_question,
                         tf_answer: current_answer,
-                        tf_label: current_target
+                        tf_label: current_target,
+                        tf_question_length: current_length_q,
+                        tf_answer_length: current_length_a
                         })
 
         current_learning_rate = lr*decay_factor
@@ -430,7 +457,7 @@ def train():
             # print('numtest: ' + str(num_test))
             vocabulary_size = len(dataset_test['ix_to_word'].keys())
 
-            tf_proba_test, tf_image_test, tf_question_test, tf_answer_test = model.build_generator()
+            tf_proba_test, tf_image_test, tf_question_test, tf_answer_test, tf_question_test_length, tf_answer_test_length = model.build_generator()
 
             result = {}
 
@@ -476,7 +503,9 @@ def train():
                         feed_dict={
                             tf_image_test: current_img,
                             tf_question_test: current_question,
-                            tf_answer_test: current_answer
+                            tf_answer_test: current_answer,
+                            tf_question_test_length: current_length_q,
+                            tf_answer_test_length: current_length_a
                             })
 
                 # initialize json list

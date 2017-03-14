@@ -444,12 +444,14 @@ def train():
                         tf_answer_length: current_length_a
                         })
 
-        current_learning_rate = lr*decay_factor
-        lr.assign(current_learning_rate).eval()
+        current_learning_rate_global = lr_global*decay_factor
+        current_learning_rate_nlp = lr_nlp*decay_factor
+        lr_global.assign(current_learning_rate_global).eval()
+        lr_nlp.assign(current_learning_rate_nlp).eval()
 
         tStop = time.time()
         if np.mod(itr, 100) == 0:
-            print ("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr.eval())
+            print ("Iteration: ", itr, " Loss: ", loss, " Learning Rate: ", lr_global.eval())
             f1.write(str(itr) + '\t' + str(loss) + "\n")
             #print ("Iteration: ", itr, " scores: ", scores, " label: ", current_target)
             print ("Time Cost:", round(tStop - tStart,2), "s")

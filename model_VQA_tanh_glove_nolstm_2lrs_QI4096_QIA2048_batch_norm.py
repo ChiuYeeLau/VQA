@@ -14,8 +14,10 @@ import pdb
 import spacy
 from random import seed
 
-seed(862)
-tf.set_random_seed(862)
+tf.reset_default_graph()
+random_seed = 320
+np.random.seed(random_seed)
+tf.set_random_seed(random_seed)
 
 class Answer_Generator():
     def __init__(self, rnn_size, rnn_layer, batch_size, input_embedding_size, dim_image, dim_hidden_QI, dim_hidden_QIA, max_words_q, vocabulary_size, drop_out_rate, emb_matrix, decay):
@@ -46,26 +48,26 @@ class Answer_Generator():
         '''
 
         # question-embedding W1
-        self.embed_Q_W = tf.Variable(tf.random_uniform([self.input_embedding_size, self.dim_hidden_QI], -0.08,0.08),name='embed_Q_W')
-        self.embed_Q_b = tf.Variable(tf.random_uniform([self.dim_hidden_QI], -0.08, 0.08), name='embed_Q_b')
+        self.embed_Q_W = tf.Variable(tf.random_uniform([self.input_embedding_size, self.dim_hidden_QI], -0.08,0.08,seed = random_seed),name='embed_Q_W')
+        self.embed_Q_b = tf.Variable(tf.random_uniform([self.dim_hidden_QI], -0.08, 0.08,seed = random_seed), name='embed_Q_b')
 
         # Answer-embedding W3
-        self.embed_A_W = tf.Variable(tf.random_uniform([self.input_embedding_size, self.dim_hidden_QIA], -0.08,0.08),name='embed_A_W')
-        self.embed_A_b = tf.Variable(tf.random_uniform([self.dim_hidden_QIA], -0.08, 0.08), name='embed_A_b')
+        self.embed_A_W = tf.Variable(tf.random_uniform([self.input_embedding_size, self.dim_hidden_QIA], -0.08,0.08,seed = random_seed),name='embed_A_W')
+        self.embed_A_b = tf.Variable(tf.random_uniform([self.dim_hidden_QIA], -0.08, 0.08,seed = random_seed), name='embed_A_b')
 
         # image-embedding W2
-        self.embed_image_W = tf.Variable(tf.random_uniform([dim_image, self.dim_hidden_QI], -0.08, 0.08), name='embed_image_W')
-        self.embed_image_b = tf.Variable(tf.random_uniform([dim_hidden_QI], -0.08, 0.08), name='embed_image_b')
+        self.embed_image_W = tf.Variable(tf.random_uniform([dim_image, self.dim_hidden_QI], -0.08, 0.08,seed = random_seed), name='embed_image_W')
+        self.embed_image_b = tf.Variable(tf.random_uniform([dim_hidden_QI], -0.08, 0.08,seed = random_seed), name='embed_image_b')
 
         # score-embedding W4
         #self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden, num_output], -0.08, 0.08), name='embed_scor_W')
         #self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
-        self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden_QIA, num_output], -0.08, 0.08), name='embed_scor_W')
-        self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08), name='embed_scor_b')
+        self.embed_scor_W = tf.Variable(tf.random_uniform([dim_hidden_QIA, num_output], -0.08, 0.08,seed = random_seed), name='embed_scor_W')
+        self.embed_scor_b = tf.Variable(tf.random_uniform([num_output], -0.08, 0.08,seed = random_seed), name='embed_scor_b')
 
         # QI-embedding W3
-        self.embed_QI_W = tf.Variable(tf.random_uniform([dim_hidden_QI, dim_hidden_QIA], -0.08, 0.08), name='embed_QI_W')
-        self.embed_QI_b = tf.Variable(tf.random_uniform([dim_hidden_QIA], -0.08, 0.08), name='embed_QI_b')
+        self.embed_QI_W = tf.Variable(tf.random_uniform([dim_hidden_QI, dim_hidden_QIA], -0.08, 0.08,seed = random_seed), name='embed_QI_W')
+        self.embed_QI_b = tf.Variable(tf.random_uniform([dim_hidden_QIA], -0.08, 0.08,seed = random_seed), name='embed_QI_b')
 
     def build_model(self, is_training):
 
@@ -99,30 +101,30 @@ class Answer_Generator():
         Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
         Q_emb = tf.tanh(Q_linear)
 
-        Q_emb_BN = tf.contrib.layers.batch_norm(Q_emb, decay=self.decay, is_training = is_training, scope = 'Q_emb_BN')
+        # Q_emb_BN = tf.contrib.layers.batch_norm(Q_emb, decay=self.decay, is_training = is_training, scope = 'Q_emb_BN')
 
 
         image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
         image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
         image_emb = tf.tanh(image_linear)
 
-        image_emb_BN = tf.contrib.layers.batch_norm(image_emb, decay=self.decay, is_training = is_training, scope = 'image_emb_BN')
+        # image_emb_BN = tf.contrib.layers.batch_norm(image_emb, decay=self.decay, is_training = is_training, scope = 'image_emb_BN')
 
         A_drop = tf.nn.dropout(state_ans, 1-self.drop_out_rate)
         A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
         A_emb = tf.tanh(A_linear)
 
-        A_emb_BN = tf.contrib.layers.batch_norm(A_emb, decay=self.decay, is_training = is_training, scope = 'A_emb_BN')
+        # A_emb_BN = tf.contrib.layers.batch_norm(A_emb, decay=self.decay, is_training = is_training, scope = 'A_emb_BN')
 
-        QI = tf.mul(Q_emb_BN, image_emb_BN)
+        QI = tf.mul(Q_emb, image_emb)
 
-        QI_BN = tf.contrib.layers.batch_norm(QI, decay=self.decay, is_training = is_training, scope = 'QI_BN')
+        # QI_BN = tf.contrib.layers.batch_norm(QI, decay=self.decay, is_training = is_training, scope = 'QI_BN')
 
-        QI_drop = tf.nn.dropout(QI_BN, 1-self.drop_out_rate)
+        QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
         QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
         QI_emb = tf.tanh(QI_linear)
 
-        QIA = tf.mul(QI_emb, A_emb_BN)
+        QIA = tf.mul(QI_emb, A_emb)
 
         QIA_BN = tf.contrib.layers.batch_norm(QIA, decay=self.decay, is_training = is_training, scope = 'QIA_BN')
 
@@ -164,30 +166,30 @@ class Answer_Generator():
         Q_linear = tf.nn.xw_plus_b(Q_drop, self.embed_Q_W, self.embed_Q_b)
         Q_emb = tf.tanh(Q_linear)
 
-        Q_emb_BN = tf.contrib.layers.batch_norm(Q_emb, decay=self.decay, is_training = is_training, scope = 'Q_emb_BN', reuse = True)
+        # Q_emb_BN = tf.contrib.layers.batch_norm(Q_emb, decay=self.decay, is_training = is_training, scope = 'Q_emb_BN', reuse = True)
 
 
         image_drop = tf.nn.dropout(image, 1-self.drop_out_rate)
         image_linear = tf.nn.xw_plus_b(image_drop, self.embed_image_W, self.embed_image_b)
         image_emb = tf.tanh(image_linear)
 
-        image_emb_BN = tf.contrib.layers.batch_norm(image_emb, decay=self.decay, is_training = is_training, scope = 'image_emb_BN', reuse = True)
+        # image_emb_BN = tf.contrib.layers.batch_norm(image_emb, decay=self.decay, is_training = is_training, scope = 'image_emb_BN', reuse = True)
 
         A_drop = tf.nn.dropout(state_ans, 1-self.drop_out_rate)
         A_linear = tf.nn.xw_plus_b(A_drop, self.embed_A_W, self.embed_A_b)
         A_emb = tf.tanh(A_linear)
 
-        A_emb_BN = tf.contrib.layers.batch_norm(A_emb, decay=self.decay, is_training = is_training, scope = 'A_emb_BN', reuse = True)
+        # A_emb_BN = tf.contrib.layers.batch_norm(A_emb, decay=self.decay, is_training = is_training, scope = 'A_emb_BN', reuse = True)
 
-        QI = tf.mul(Q_emb_BN, image_emb_BN)
+        QI = tf.mul(Q_emb, image_emb)
 
-        QI_BN = tf.contrib.layers.batch_norm(QI, decay=self.decay, is_training = is_training, scope = 'QI_BN', reuse = True)
+        # QI_BN = tf.contrib.layers.batch_norm(QI, decay=self.decay, is_training = is_training, scope = 'QI_BN', reuse = True)
 
-        QI_drop = tf.nn.dropout(QI_BN, 1-self.drop_out_rate)
+        QI_drop = tf.nn.dropout(QI, 1-self.drop_out_rate)
         QI_linear = tf.nn.xw_plus_b(QI_drop, self.embed_QI_W, self.embed_QI_b)
         QI_emb = tf.tanh(QI_linear)
 
-        QIA = tf.mul(QI_emb, A_emb_BN)
+        QIA = tf.mul(QI_emb, A_emb)
 
         QIA_BN = tf.contrib.layers.batch_norm(QIA, decay=self.decay, is_training = is_training, scope = 'QIA_BN', reuse = True)
 

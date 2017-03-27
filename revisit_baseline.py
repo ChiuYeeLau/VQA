@@ -59,14 +59,14 @@ class Answer_Generator():
         state_ans = tf.reduce_sum(ans_inputs, 1)
 
         inputs = tf.concat(1, [state_que, image, state_ans])
-        inputs = tf.nn.dropout(inputs, 0.5)
+        # inputs = tf.nn.dropout(inputs, 0.9)
 
         layer1_linear = tf.nn.xw_plus_b(inputs, self.layer1_W, self.layer1_b)
+        layer1_linear = tf.nn.relu(layer1_linear)
 
-        layer1_BN = tf.contrib.layers.batch_norm(layer1_linear, decay=self.decay, is_training = is_training, scope = 'layer1_BN')
-        layer1_BN = tf.nn.relu(layer1_BN)
+        # layer1_BN = tf.contrib.layers.batch_norm(layer1_linear, decay=self.decay, is_training = is_training, scope = 'layer1_BN')
 
-        layer2_linear = tf.nn.xw_plus_b(layer1_BN, self.layer2_W, self.layer2_b)
+        layer2_linear = tf.nn.xw_plus_b(layer1_linear, self.layer2_W, self.layer2_b)
 
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=layer2_linear, labels=label)   #zhe
         # Calculate loss
@@ -88,14 +88,15 @@ class Answer_Generator():
         state_ans = tf.reduce_sum(ans_inputs, 1)
 
         inputs = tf.concat(1, [state_que, image, state_ans])
-        inputs = tf.nn.dropout(inputs, 0.5)
+        # inputs = tf.nn.dropout(inputs, 0.9)
 
         layer1_linear = tf.nn.xw_plus_b(inputs, self.layer1_W, self.layer1_b)
+        layer1_linear = tf.nn.relu(layer1_linear)
 
-        layer1_BN = tf.contrib.layers.batch_norm(layer1_linear, decay=self.decay, is_training = is_training, scope = 'layer1_BN', reuse = True)
-        layer1_BN = tf.nn.relu(layer1_BN)
+        # layer1_BN = tf.contrib.layers.batch_norm(layer1_linear, decay=self.decay, is_training = is_training, scope = 'layer1_BN', reuse = True)
 
-        layer2_linear = tf.nn.xw_plus_b(layer1_BN, self.layer2_W, self.layer2_b)
+
+        layer2_linear = tf.nn.xw_plus_b(layer1_linear, self.layer2_W, self.layer2_b)
 
         generated_ANS = tf.transpose(layer2_linear)
 
@@ -111,8 +112,8 @@ input_ques_h5 = './data_prepro_wikiGlove_shuffle.h5'
 input_json = './data_prepro_wikiGlove_shuffle.json'
 
 # Train Parameters setting
-learning_rate_global = 0.0003          # learning rate for rmsprop
-learning_rate_nlp = 0.00075
+learning_rate_global = 0.0005          # learning rate for rmsprop
+learning_rate_nlp = 0.0005
 learning_rate_decay_start = -1      # at what iteration to start decaying learning rate? (-1 = dont)
 batch_size = 512            # batch_size for each iterations
 input_embedding_size = 300      # The encoding size of each token in the vocabulary
